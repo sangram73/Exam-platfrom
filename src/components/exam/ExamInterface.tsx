@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -67,7 +66,9 @@ export function ExamInterface() {
       if (!response.ok) {
         throw new Error(result.description || 'Failed to send alert to Telegram');
       }
-      toast({ title: "Admin Alert Sent", description: message, variant: "default" });
+      // Toast for admin alerts can be noisy, consider if needed for all alerts
+      // toast({ title: "Admin Alert Sent", description: message, variant: "default" });
+      console.log("Admin Alert Sent:", message);
     } catch (error: any) {
       console.error('Error sending alert to Telegram:', error);
       toast({ variant: "destructive", title: "Telegram API Error", description: `Failed to send alert: ${error.message}` });
@@ -76,7 +77,7 @@ export function ExamInterface() {
 
   const sendPhotoToTelegram = React.useCallback(async (imageDataUrl: string, caption?: string) => {
     if (!TELEGRAM_BOT_TOKEN || !CHAT_ID) {
-      console.warn("Telegram bot token or chat ID is not configured.");
+      console.warn("Telegram bot token or chat ID is not configured for photo sending.");
       return;
     }
     try {
@@ -94,34 +95,48 @@ export function ExamInterface() {
       if (!response.ok) {
         throw new Error(result.description || 'Failed to send photo to Telegram');
       }
-      // console.log('Photo sent to Telegram:', result); // Avoid toast for each frame to prevent flooding
+      // console.log('Photo sent to Telegram:', result); // Avoid toast for each frame
     } catch (error: any) {
       console.error('Error sending photo to Telegram:', error);
-      // Avoid toast for each frame error during batch send, handled in captureAndSendMultipleFrames
-      throw error; // Re-throw to be caught by caller
+      // Re-throw to be caught by caller, especially for batch operations
+      throw error;
     }
   }, []);
 
 
   const captureAndSendMultipleFrames = React.useCallback(async () => {
-    if (!webcamRef.current || webcamRef.current.readyState < webcamRef.current.HAVE_CURRENT_DATA || !webcamStream?.active) {
-      if (!webcamStream?.active && webcamStream !== null) { // Stream was active but now isn't
-        sendAlertToTelegram("Attempted to capture frames, but webcam stream became inactive. Potential suspicious activity.");
+    if (!webcamRef.current || !webcamRef.current.srcObject || webcamRef.current.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA || !webcamStream?.active) {
+      const reason = !webcamRef.current ? "Webcam ref not available."
+                   : !webcamRef.current.srcObject ? "Webcam srcObject not set."
+                   : webcamRef.current.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA ? `Webcam not ready (state: ${webcamRef.current.readyState}).`
+                   : !webcamStream?.active ? "Webcam stream inactive."
+                   : "Unknown webcam issue.";
+      console.warn("Skipping frame capture:", reason);
+      if (!webcamStream?.active && webcamStream !== null) { 
+        sendAlertToTelegram(`Attempted to capture frames, but webcam stream became inactive. ${reason} Potential suspicious activity.`);
       }
       return;
     }
 
-    toast({ title: "Periodic Snapshot", description: "Capturing and sending 50 webcam frames to admin. This may take some time and network resources." });
+    toast({ title: "Periodic Snapshot", description: "Capturing and sending 50 webcam frames to admin. This may take some time." });
+    console.log("Starting periodic snapshot of 50 frames...");
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       toast({ variant: "destructive", title: "Frame Capture Error", description: "Could not initialize canvas." });
+      sendAlertToTelegram("Frame capture error: Could not initialize canvas for snapshot.");
       return;
     }
     
     canvas.width = webcamRef.current.videoWidth;
     canvas.height = webcamRef.current.videoHeight;
+
+    if (canvas.width === 0 || canvas.height === 0) {
+        toast({ variant: "destructive", title: "Frame Capture Error", description: "Webcam dimensions are zero. Cannot capture frame."});
+        sendAlertToTelegram("Frame capture error: Webcam dimensions are zero.");
+        return;
+    }
 
     let framesSentSuccessfully = 0;
     for (let i = 0; i < 50; i++) {
@@ -136,81 +151,101 @@ export function ExamInterface() {
         await sendPhotoToTelegram(frameDataUrl, `Frame ${i + 1} of 50 (${new Date().toLocaleTimeString()})`);
         framesSentSuccessfully++;
         
-        // IMPORTANT: Delay to avoid overwhelming the browser and Telegram API.
-        // Sending 50 frames rapidly is resource-intensive.
-        await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay between frames
-      } catch (error) {
-        toast({ variant: "destructive", title: `Frame Send Error (Frame ${i+1})`, description: "Could not send a frame to Telegram. Continuing with next." });
-        // Wait before retrying or moving to next to prevent rapid-fire failures
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second delay
+      } catch (error: any) {
+        console.error(`Frame Send Error (Frame ${i+1}):`, error.message);
+        toast({ variant: "destructive", title: `Frame Send Error (Frame ${i+1})`, description: `Failed to send frame: ${error.message}. Continuing.` });
+        sendAlertToTelegram(`Failed to send frame ${i+1} to Telegram. Error: ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before next attempt
       }
     }
     toast({ title: "Snapshot Complete", description: `Finished sending batch of ${framesSentSuccessfully} webcam frames.` });
+    sendAlertToTelegram(`Snapshot batch completed. Sent ${framesSentSuccessfully} of 50 frames.`);
   }, [webcamRef, webcamStream, toast, sendPhotoToTelegram, sendAlertToTelegram]);
 
   // Timer logic
   React.useEffect(() => {
     if (timeLeft <= 0) {
-      handleSubmitExam(true); // Auto-submit when time is up
+      handleSubmitExam(true); 
       return;
     }
     const timerId = setInterval(() => setTimeLeft((prevTime) => prevTime - 1), 1000);
     return () => clearInterval(timerId);
-  }, [timeLeft]); // Removed handleSubmitExam from deps, it will use the latest state due to useCallback or instance definition
+  }, [timeLeft]); // handleSubmitExam removed, defined with useCallback
 
   // Webcam integration
   React.useEffect(() => {
     let snapshotIntervalId: NodeJS.Timeout | null = null;
-    let currentStream: MediaStream | null = null;
+    let localStreamInstance: MediaStream | null = null;
 
     async function setupWebcam() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); // Audio not strictly needed for frames
-        currentStream = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        localStreamInstance = stream; // Keep local reference for cleanup
         setWebcamStream(stream);
+
         if (webcamRef.current) {
           webcamRef.current.srcObject = stream;
           webcamRef.current.onloadedmetadata = () => {
-            if (webcamRef.current) webcamRef.current.play();
+            if (webcamRef.current) {
+              webcamRef.current.play().catch(playError => {
+                console.error("Error playing webcam video:", playError);
+                sendAlertToTelegram(`Webcam video element failed to play. Error: ${playError.message}`);
+                toast({ variant: "destructive", title: "Webcam Play Error", description: `Could not play video: ${playError.message}` });
+              });
+            }
           };
-          webcamRef.current.onerror = () => {
+          webcamRef.current.onerror = () => { // Video element error
+            console.error("Webcam video element error.");
             sendAlertToTelegram("Webcam video element encountered an error during exam.");
+            toast({ variant: "destructive", title: "Webcam Element Error", description: "The video display encountered an issue." });
           };
         }
 
         stream.getTracks().forEach(track => {
           track.onended = () => {
+            console.warn("Webcam/microphone track ended.");
             sendAlertToTelegram("Webcam/microphone track ended unexpectedly. This could indicate the student closed the camera, revoked permission, or the device was disconnected. Potential suspicious activity.");
-            setWebcamStream(null); // Reflect loss of stream
+            setWebcamStream(null); // Reflect loss of stream in React state
+            if (localStreamInstance) { // Also attempt to stop tracks on local instance if this occurs
+                localStreamInstance.getTracks().forEach(t => t.stop());
+                localStreamInstance = null;
+            }
+            if (webcamRef.current) webcamRef.current.srcObject = null; // Clear from video element
           };
         });
         
-        // Start capturing snapshots every 5 minutes
-        // WARNING: Sending 50 frames every 5 minutes is extremely resource-intensive.
-        // This will significantly impact browser performance and network usage.
-        // Consider reducing the number of frames or increasing the interval.
-        snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000); // 5 minutes
+        // Start capturing snapshots. Interval is 5 minutes.
+        snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000);
+        sendAlertToTelegram("Webcam monitoring started successfully for the exam session.");
 
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to access webcam:", err);
-        toast({ variant: "destructive", title: "Webcam Error", description: "Could not access webcam. Monitoring may be affected. Please ensure permissions are granted." });
-        sendAlertToTelegram("Failed to access webcam at the start of or during the exam. Monitoring is not active.");
+        toast({ variant: "destructive", title: "Webcam Access Error", description: `Could not access webcam: ${err.message}. Monitoring may be affected. Please ensure permissions are granted.` });
+        sendAlertToTelegram(`Failed to access webcam at the start of or during the exam: ${err.message}. Monitoring is not active.`);
+        setWebcamStream(null);
       }
     }
     setupWebcam();
 
     return () => {
       if (snapshotIntervalId) clearInterval(snapshotIntervalId);
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
+      if (localStreamInstance) {
+        localStreamInstance.getTracks().forEach(track => track.stop());
+        localStreamInstance = null;
       }
       if (webcamRef.current && webcamRef.current.srcObject) {
-         // @ts-ignore
-         webcamRef.current.srcObject.getTracks().forEach(track => track.stop());
+         // Ensure srcObject is a MediaStream before calling getTracks
+         const currentVideoSrcObject = webcamRef.current.srcObject;
+         if (currentVideoSrcObject instanceof MediaStream) {
+            currentVideoSrcObject.getTracks().forEach(track => track.stop());
+         }
          webcamRef.current.srcObject = null;
       }
+      setWebcamStream(null); // Ensure React state is also cleared
+      console.log("Webcam resources cleaned up.");
     }
-  }, [toast, sendAlertToTelegram, captureAndSendMultipleFrames]);
+  }, [toast, sendAlertToTelegram, captureAndSendMultipleFrames]); // Dependencies are stable callbacks/imports
 
 
   const currentQuestion = mockExam.questions[currentQuestionIndex];
@@ -232,12 +267,13 @@ export function ExamInterface() {
     
     sendAlertToTelegram(`Exam submitted by student. Auto-submitted: ${autoSubmit}.`);
     
+    // Simulate API call for submission
     await new Promise(resolve => setTimeout(resolve, 2000)); 
     
-    console.log("Exam Submitted:", answers);
+    console.log("Exam Submitted:", answers); // In a real app, send to backend
     setIsSubmitting(false);
     toast({ title: "Exam Submitted Successfully!", description: "Your responses have been recorded." });
-    router.push("/login");
+    router.push("/login"); // Redirect after submission
   }, [answers, router, toast, sendAlertToTelegram]);
 
   const formatTime = (seconds: number) => {
@@ -316,9 +352,8 @@ export function ExamInterface() {
         </CardContent>
         <CardFooter className="flex justify-between items-center">
            <div className="relative w-24 h-18 border rounded-md overflow-hidden bg-muted">
-             {/* Ensure video tag is always rendered to attach ref, then control visibility or content */}
-             <video ref={webcamRef} playsInline className="w-full h-full object-cover transform scale-x-[-1]" muted />
-             {!webcamStream && <div className="absolute inset-0 flex items-center justify-center w-full h-full text-xs text-muted-foreground bg-muted">Webcam Off</div>}
+             <video ref={webcamRef} playsInline autoPlay className="w-full h-full object-cover transform scale-x-[-1]" muted />
+             {!webcamStream && <div className="absolute inset-0 flex items-center justify-center w-full h-full text-xs text-muted-foreground bg-muted p-1 text-center">Webcam Off / Error</div>}
              {webcamStream && <div className="absolute bottom-1 right-1 bg-black/50 text-white text-xs px-1 rounded">Live</div>}
            </div>
           
@@ -345,7 +380,7 @@ export function ExamInterface() {
                   <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => handleSubmitExam()} disabled={isSubmitting} className="bg-accent hover:bg-accent/90">
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Confirm & Submit
+                    Confirm &amp; Submit
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
