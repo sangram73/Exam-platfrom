@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -27,22 +28,22 @@ export function ExamNavbar({ studentName, studentId, stream, hasPermission, isWe
     if (hasPermission === null && !isWebcamReady) {
       return (
         <div className="absolute inset-0 flex items-center justify-center bg-muted/80">
-          <Loader2 size={20} className="animate-spin text-yellow-400" />
+          <Loader2 size={20} className="animate-spin text-accent" />
         </div>
       );
     }
     if (hasPermission === false) {
       return (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 text-destructive-foreground p-1">
-          <CameraOff size={20} className="text-red-500" />
-          <span className="text-xs text-red-500 mt-1 text-center">Cam Error</span>
+          <CameraOff size={20} className="text-destructive" />
+          <span className="text-xs text-destructive mt-1 text-center">Cam Error</span>
         </div>
       );
     }
     if (hasPermission === true && !isWebcamReady && !stream) {
          return (
         <div className="absolute inset-0 flex items-center justify-center bg-muted/80">
-          <Loader2 size={20} className="animate-spin text-yellow-400" />
+          <Loader2 size={20} className="animate-spin text-accent" />
         </div>
       );
     }
@@ -55,7 +56,7 @@ export function ExamNavbar({ studentName, studentId, stream, hasPermission, isWe
     }
      if (hasPermission === true && isWebcamReady && (!stream || !stream?.active)) {
       return (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 text-orange-400 p-1">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/80 text-accent p-1">
           <CameraOff size={20} />
           <span className="text-xs mt-1 text-center">Cam Inactive</span>
         </div>
@@ -115,3 +116,4 @@ export function ExamNavbar({ studentName, studentId, stream, hasPermission, isWe
     </nav>
   );
 }
+

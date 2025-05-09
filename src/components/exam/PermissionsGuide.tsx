@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -119,7 +120,7 @@ export function PermissionsGuide() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl text-green-600">Do's</CardTitle>
+            <CardTitle className="text-xl text-primary">Do's</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-2 pl-5 text-sm">
@@ -129,7 +130,7 @@ export function PermissionsGuide() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl text-red-600">Don'ts</CardTitle>
+            <CardTitle className="text-xl text-destructive">Don'ts</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="list-disc space-y-2 pl-5 text-sm">
@@ -166,3 +167,4 @@ export function PermissionsGuide() {
     </div>
   );
 }
+

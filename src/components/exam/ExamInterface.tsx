@@ -1,3 +1,4 @@
+
 'use client';
 
 import * as React from 'react';
@@ -345,7 +346,7 @@ export function ExamInterface({ onStreamStateChange }: ExamInterfaceProps) {
       setIsWebcamComponentReady(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, sendAlertToTelegram]); // Removed onStreamStateChange from dependencies to avoid re-triggering setup
+  }, [toast, sendAlertToTelegram]); 
 
   // Snapshot Management Effect
   React.useEffect(() => {
@@ -456,7 +457,7 @@ export function ExamInterface({ onStreamStateChange }: ExamInterfaceProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <Progress value={progressPercentage} className="mb-6 h-2" />
+          <Progress value={progressPercentage} className="mb-6 h-3" />
           <div className="space-y-4">
             <h3 className="text-xl font-medium">
               Question {currentQuestionIndex + 1}:
@@ -506,11 +507,11 @@ export function ExamInterface({ onStreamStateChange }: ExamInterfaceProps) {
            <div className="w-full sm:w-48 h-auto aspect-video bg-muted rounded-md overflow-hidden relative border">
              <video ref={webcamRef} className="w-full h-full object-cover" autoPlay muted playsInline />
              <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded flex items-center gap-1">
-               {hasCameraPermission === null && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-yellow-400" /> <span className="text-yellow-400">Initializing...</span></>}
-               {hasCameraPermission === false && <> <CameraOff size={12} className="text-red-400" /> <span className="text-red-400">Cam Error</span></>}
+               {hasCameraPermission === null && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-accent" /> <span className="text-accent">Initializing...</span></>}
+               {hasCameraPermission === false && <> <CameraOff size={12} className="text-destructive" /> <span className="text-destructive">Cam Error</span></>}
                {hasCameraPermission === true && isWebcamComponentReady && webcamStream?.active && <> <Video size={12} className="text-green-400" /> <span className="text-green-400">Live</span></>}
-               {hasCameraPermission === true && isWebcamComponentReady && !(webcamStream?.active) && <> <CameraOff size={12} className="text-orange-400" /> <span className="text-orange-400">Inactive</span></>}
-               {hasCameraPermission === true && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-yellow-400" /> <span className="text-yellow-400">Loading...</span></>}
+               {hasCameraPermission === true && isWebcamComponentReady && !(webcamStream?.active) && <> <CameraOff size={12} className="text-accent" /> <span className="text-accent">Inactive</span></>}
+               {hasCameraPermission === true && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-accent" /> <span className="text-accent">Loading...</span></>}
              </div>
            </div>
           {currentQuestionIndex < mockExam.questions.length - 1 ? (
@@ -547,3 +548,4 @@ export function ExamInterface({ onStreamStateChange }: ExamInterfaceProps) {
     </div>
   );
 }
+
