@@ -1,5 +1,6 @@
 import { PermissionsGuide } from '@/components/exam/PermissionsGuide';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CurrentYear } from '@/components/utility/CurrentYear';
 import { ShieldCheck } from 'lucide-react';
 
 export default function PreExamPage() {
@@ -20,7 +21,7 @@ export default function PreExamPage() {
         </CardContent>
       </Card>
        <footer className="mt-8 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} Cybknow. All rights reserved.</p>
+        <p>&copy; <CurrentYear /> Cybknow. All rights reserved.</p>
       </footer>
     </main>
   );

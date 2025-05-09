@@ -1,4 +1,5 @@
 import { ExamInterface } from '@/components/exam/ExamInterface';
+import { CurrentYear } from '@/components/utility/CurrentYear';
 import { AlertTriangle } from 'lucide-react';
 
 export default function ExamPage() {
@@ -14,7 +15,7 @@ export default function ExamPage() {
       </div>
        <footer className="mt-12 text-center text-sm text-muted-foreground">
          <p className="flex items-center justify-center"><AlertTriangle size={14} className="mr-1 text-destructive" /> Please maintain exam integrity.</p>
-        <p>&copy; {new Date().getFullYear()} Cybknow. All rights reserved.</p>
+        <p>&copy; <CurrentYear /> Cybknow. All rights reserved.</p>
       </footer>
     </main>
   );
