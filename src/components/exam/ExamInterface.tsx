@@ -1,37 +1,45 @@
-"use client";
+'use client';
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { useToast } from "@/hooks/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Clock, ChevronRight, Send, Loader2, VideoOff, AlertTriangle } from "lucide-react";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Clock, ChevronRight, Send, Loader2, AlertTriangle, CameraOff, Video } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 // Mock data - In a real app, this would come from Firebase Firestore
 const mockExam = {
-  title: "General Knowledge Quiz",
+  title: 'General Knowledge Quiz',
   duration: 1800, // 30 minutes in seconds
   questions: [
-    { id: "q1", type: "multiple-choice", text: "What is the capital of France?", options: ["Berlin", "Madrid", "Paris", "Rome"], correctAnswer: "Paris" },
-    { id: "q2", type: "true-false", text: "The Earth is flat.", correctAnswer: "false" },
-    { id: "q3", type: "short-answer", text: "Who painted the Mona Lisa?", correctAnswer: "Leonardo da Vinci" },
-    { id: "q4", type: "multiple-choice", text: "Which planet is known as the Red Planet?", options: ["Earth", "Mars", "Jupiter", "Saturn"], correctAnswer: "Mars" },
+    { id: 'q1', type: 'multiple-choice', text: 'What is the capital of France?', options: ['Berlin', 'Madrid', 'Paris', 'Rome'], correctAnswer: 'Paris' },
+    { id: 'q2', type: 'true-false', text: 'The Earth is flat.', correctAnswer: 'false' },
+    { id: 'q3', type: 'short-answer', text: 'Who painted the Mona Lisa?', correctAnswer: 'Leonardo da Vinci' },
+    { id: 'q4', type: 'multiple-choice', text: 'Which planet is known as the Red Planet?', options: ['Earth', 'Mars', 'Jupiter', 'Saturn'], correctAnswer: 'Mars' },
   ],
 };
 
-type Question = typeof mockExam.questions[0];
 type Answer = string | null;
 
 // Telegram Bot Configuration
-const TELEGRAM_BOT_TOKEN = "7048290509:AAGR35WM57lRsEN1WVxV8XZTKY16xVaIRM8"; 
-const CHAT_ID = "5673394682"; 
+const TELEGRAM_BOT_TOKEN = "7048290509:AAGR35WM57lRsEN1WVxV8XZTKY16xVaIRM8";
+const CHAT_ID = "5673394682";
 
 // Helper to convert Data URL to Blob
 async function dataURLtoBlob(dataURL: string): Promise<Blob> {
@@ -39,7 +47,11 @@ async function dataURLtoBlob(dataURL: string): Promise<Blob> {
   return res.blob();
 }
 
-export function ExamInterface() {
+interface ExamInterfaceProps {
+  onStreamStateChange?: (stream: MediaStream | null, permission: boolean | null, ready: boolean) => void;
+}
+
+export function ExamInterface({ onStreamStateChange }: ExamInterfaceProps) {
   const router = useRouter();
   const { toast } = useToast();
   const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0);
@@ -48,10 +60,17 @@ export function ExamInterface() {
   );
   const [timeLeft, setTimeLeft] = React.useState(mockExam.duration);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-  
+
   const webcamRef = React.useRef<HTMLVideoElement>(null);
   const [webcamStream, setWebcamStream] = React.useState<MediaStream | null>(null);
-  const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null); 
+  const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null);
+  const [isWebcamComponentReady, setIsWebcamComponentReady] = React.useState(false);
+
+
+  React.useEffect(() => {
+    onStreamStateChange?.(webcamStream, hasCameraPermission, isWebcamComponentReady);
+  }, [webcamStream, hasCameraPermission, onStreamStateChange, isWebcamComponentReady]);
+
 
   // --- Telegram Bot Functions ---
   const sendAlertToTelegram = React.useCallback(async (message: string) => {
@@ -97,7 +116,7 @@ export function ExamInterface() {
       }
     } catch (error: any) {
       console.error('Error sending photo to Telegram:', error.message);
-      throw error; 
+      throw error;
     }
   }, []);
 
@@ -107,7 +126,7 @@ export function ExamInterface() {
                    : !webcamStream?.active ? "Webcam stream inactive."
                    : `Webcam not ready (state: ${webcamRef.current.readyState}). Need HAVE_ENOUGH_DATA (>=3).`;
       console.warn("Skipping frame capture:", reason);
-      if (webcamStream !== null && !webcamStream?.active) { 
+      if (webcamStream !== null && !webcamStream?.active) {
         sendAlertToTelegram(`Attempted to capture frames, but webcam stream became inactive. ${reason} Potential suspicious activity.`);
       }
       return;
@@ -118,12 +137,12 @@ export function ExamInterface() {
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx || !webcamRef.current) { 
+    if (!ctx || !webcamRef.current) {
       toast({ variant: "destructive", title: "Frame Capture Error", description: "Could not initialize canvas or webcam not ready." });
       sendAlertToTelegram("Frame capture error: Could not initialize canvas or webcam not ready for snapshot.");
       return;
     }
-    
+
     canvas.width = webcamRef.current.videoWidth;
     canvas.height = webcamRef.current.videoHeight;
 
@@ -132,6 +151,7 @@ export function ExamInterface() {
         sendAlertToTelegram("Frame capture error: Webcam dimensions are zero at capture time.");
         return;
     }
+
 
     let framesSentSuccessfully = 0;
     for (let i = 0; i < 50; i++) {
@@ -142,16 +162,19 @@ export function ExamInterface() {
       try {
         ctx.drawImage(webcamRef.current, 0, 0, canvas.width, canvas.height);
         const frameDataUrl = canvas.toDataURL('image/jpeg', 0.3); // Reduced quality to 0.3 for better compression
-        
+
         await sendPhotoToTelegram(frameDataUrl, `Frame ${i + 1} of 50 (${new Date().toLocaleTimeString()})`);
         framesSentSuccessfully++;
-        // If not sending sequentially, remove this delay. For now, keep a small delay to avoid overwhelming the API.
-        await new Promise(resolve => setTimeout(resolve, 200)); // Small delay between sends
+        if (i < 49) { // Avoid delay after the last frame
+            await new Promise(resolve => setTimeout(resolve, 200)); // Small delay between sends
+        }
       } catch (error: any) {
         console.error(`Frame Send Error (Frame ${i+1}):`, error.message);
         toast({ variant: "destructive", title: `Frame Send Error (Frame ${i+1})`, description: `Failed to send frame: ${error.message}. Continuing.` });
         sendAlertToTelegram(`Failed to send frame ${i+1} to Telegram. Error: ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay on error
+        if (i < 49) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Longer delay on error if not the last frame
+        }
       }
     }
     toast({ title: "Snapshot Complete", description: `Finished sending batch of ${framesSentSuccessfully} webcam frames.` });
@@ -161,13 +184,13 @@ export function ExamInterface() {
   // Timer logic
   React.useEffect(() => {
     if (timeLeft <= 0) {
-      handleSubmitExam(true); 
+      handleSubmitExam(true);
       return;
     }
     const timerId = setInterval(() => setTimeLeft((prevTime) => prevTime - 1), 1000);
     return () => clearInterval(timerId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft]); 
+  }, [timeLeft]);
 
   // Webcam Setup Effect
   React.useEffect(() => {
@@ -177,13 +200,14 @@ export function ExamInterface() {
     const videoElement = webcamRef.current;
 
     async function setupWebcam() {
+      setIsWebcamComponentReady(false);
       if (!videoElement) {
         console.error("Webcam ref (videoElement) not available at the time of setup.");
         sendAlertToTelegram("Webcam ref not available during setup. Critical error.");
         setHasCameraPermission(false);
         return;
       }
-      
+
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         toast({ variant: "destructive", title: "Media Devices Error", description: "getUserMedia not supported on this browser." });
         sendAlertToTelegram("getUserMedia not supported on student's browser.");
@@ -200,19 +224,18 @@ export function ExamInterface() {
         videoElement.srcObject = stream;
         console.log("Stream assigned to video element. Waiting for metadata...");
 
-        // Promise for metadata
         await new Promise<void>((resolveMetadata, rejectMetadata) => {
           metadataTimeoutId = setTimeout(() => {
-            videoElement.onloadedmetadata = null; // Cleanup
-            videoElement.onerror = null; // Cleanup specific error handler
+            videoElement.onloadedmetadata = null;
+            videoElement.onerror = null;
             console.error("Timeout: Webcam metadata did not load within 30 seconds.");
             rejectMetadata(new Error("Timeout: Webcam metadata did not load within 30 seconds. Check camera connection and permissions."));
-          }, 30000); // Increased timeout to 30 seconds
+          }, 30000); 
 
           videoElement.onloadedmetadata = () => {
             if (metadataTimeoutId) clearTimeout(metadataTimeoutId);
             metadataTimeoutId = null;
-            videoElement.onerror = null; // Clean up specific error handler for this stage
+            videoElement.onerror = null; 
 
             console.log("Webcam onloadedmetadata fired. Video dimensions:", videoElement.videoWidth, "x", videoElement.videoHeight);
             if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
@@ -222,18 +245,16 @@ export function ExamInterface() {
             resolveMetadata();
           };
 
-          // Error during srcObject assignment or initial loading
-          videoElement.onerror = (e) => { // This onerror is for the metadata loading phase
+          videoElement.onerror = (e) => { 
             if (metadataTimeoutId) clearTimeout(metadataTimeoutId);
             metadataTimeoutId = null;
-            videoElement.onloadedmetadata = null; // Clean up
+            videoElement.onloadedmetadata = null; 
             console.error("Webcam video element error during metadata loading phase:", e);
             rejectMetadata(new Error("Webcam hardware error or stream issue during metadata loading."));
           };
         });
 
         console.log("Metadata loaded successfully. Attempting to play video...");
-        // Promise for play
         await new Promise<void>((resolvePlay, rejectPlay) => {
             playTimeoutId = setTimeout(() => {
                 console.error("Timeout: Video playback did not start within 10 seconds after metadata load.");
@@ -254,12 +275,13 @@ export function ExamInterface() {
                 rejectPlay(err);
               });
         });
-        
+
         console.log("Webcam video playing successfully.");
         setHasCameraPermission(true);
         setWebcamStream(stream);
+        setIsWebcamComponentReady(true);
 
-        // Setup track ended listener
+
         stream.getTracks().forEach(track => {
           track.onended = () => {
             console.warn(`Webcam track (${track.kind}) ended.`);
@@ -267,18 +289,19 @@ export function ExamInterface() {
             sendAlertToTelegram("Webcam track ended unexpectedly. Potential suspicious activity or device issue.");
             setHasCameraPermission(false);
             setWebcamStream(null);
+            setIsWebcamComponentReady(false);
             if (webcamRef.current) webcamRef.current.srcObject = null;
           };
         });
 
-        // Set up general runtime error handler for the video element
         videoElement.onerror = (e) => {
             console.error("Webcam video element runtime error (after successful setup):", e);
             toast({ variant: "destructive", title: "Webcam Runtime Error", description: "The video display encountered an issue during the exam." });
             sendAlertToTelegram("Webcam video element encountered a runtime error post-setup.");
-            setHasCameraPermission(false); 
-            setWebcamStream(null); 
-            stream.getTracks().forEach(t => t.stop()); 
+            setHasCameraPermission(false);
+            setWebcamStream(null);
+            setIsWebcamComponentReady(false);
+            stream.getTracks().forEach(t => t.stop());
             if (videoElement) videoElement.srcObject = null;
         };
 
@@ -288,11 +311,12 @@ export function ExamInterface() {
         sendAlertToTelegram(`Webcam setup failed: ${setupError.message}`);
         setHasCameraPermission(false);
         setWebcamStream(null);
+        setIsWebcamComponentReady(false);
         localStreamInstance?.getTracks().forEach(track => track.stop());
         if (videoElement) {
-          videoElement.srcObject = null; 
-          videoElement.onloadedmetadata = null; 
-          videoElement.onerror = null; // Clear any attached error handlers
+          videoElement.srcObject = null;
+          videoElement.onloadedmetadata = null;
+          videoElement.onerror = null; 
         }
       }
     }
@@ -306,31 +330,32 @@ export function ExamInterface() {
 
       if (videoElement) {
           videoElement.onloadedmetadata = null;
-          videoElement.onerror = null; // Clear runtime error handler
+          videoElement.onerror = null; 
           if (videoElement.srcObject && videoElement.srcObject === localStreamInstance) {
-            // Stop tracks only if this effect instance created them
             (videoElement.srcObject as MediaStream).getTracks().forEach(track => track.stop());
             videoElement.srcObject = null;
             console.log("Video element srcObject cleared and tracks stopped.");
           }
-      } else if (localStreamInstance) { // If videoElement somehow became null but stream exists
+      } else if (localStreamInstance) { 
         localStreamInstance.getTracks().forEach(track => track.stop());
         console.log("Local stream tracks stopped (videoElement was null).");
       }
-      // Note: webcamStream from state is managed by its own effect for snapshots
+      setWebcamStream(null); // Ensure stream is cleared from state
+      setHasCameraPermission(null); // Reset permission status
+      setIsWebcamComponentReady(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast, sendAlertToTelegram]); 
+  }, [toast, sendAlertToTelegram]); // Removed onStreamStateChange from dependencies to avoid re-triggering setup
 
   // Snapshot Management Effect
   React.useEffect(() => {
     let snapshotIntervalId: NodeJS.Timeout | null = null;
     let initialSnapshotTimeoutId: NodeJS.Timeout | null = null;
 
-    if (webcamStream && hasCameraPermission === true) {
+    if (webcamStream && hasCameraPermission === true && isWebcamComponentReady) {
       sendAlertToTelegram("Webcam monitoring started successfully for snapshots.");
-      initialSnapshotTimeoutId = setTimeout(() => captureAndSendMultipleFrames(), 5000); 
-      snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000); 
+      initialSnapshotTimeoutId = setTimeout(() => captureAndSendMultipleFrames(), 5000);
+      snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000);
     } else {
       if (snapshotIntervalId) clearInterval(snapshotIntervalId);
       if (initialSnapshotTimeoutId) clearTimeout(initialSnapshotTimeoutId);
@@ -341,7 +366,7 @@ export function ExamInterface() {
       if (snapshotIntervalId) clearInterval(snapshotIntervalId);
       if (initialSnapshotTimeoutId) clearTimeout(initialSnapshotTimeoutId);
     };
-  }, [webcamStream, hasCameraPermission, captureAndSendMultipleFrames, sendAlertToTelegram]);
+  }, [webcamStream, hasCameraPermission, isWebcamComponentReady, captureAndSendMultipleFrames, sendAlertToTelegram]);
 
 
   const currentQuestion = mockExam.questions[currentQuestionIndex];
@@ -360,28 +385,41 @@ export function ExamInterface() {
     setIsSubmitting(true);
     const submissionMessage = autoSubmit ? "Time's Up! Auto-submitting your exam." : "Submitting Exam... Please wait.";
     toast({ title: autoSubmit ? "Time's Up!" : "Submitting Exam...", description: submissionMessage });
-    
+
     sendAlertToTelegram(`Exam submitted by student. Auto-submitted: ${autoSubmit}.`);
-    
-    if (hasCameraPermission && webcamStream?.active) {
+
+    if (hasCameraPermission && webcamStream?.active && isWebcamComponentReady) {
       toast({ title: "Final Snapshot", description: "Capturing final webcam frames before submission." });
       try {
-        await captureAndSendMultipleFrames(); 
+        await captureAndSendMultipleFrames();
       } catch (e) {
         console.error("Error during final snapshot:", e);
         sendAlertToTelegram("Error during final snapshot on submission.");
       }
     } else {
-      sendAlertToTelegram("Could not capture final snapshot on submission: No camera permission or inactive stream.");
+      sendAlertToTelegram("Could not capture final snapshot on submission: No camera permission, inactive stream, or webcam component not ready.");
     }
-    
-    await new Promise(resolve => setTimeout(resolve, 2000)); 
-    
+
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
     console.log("Exam Submitted:", answers);
     setIsSubmitting(false);
     toast({ title: "Exam Submitted Successfully!", description: "Your responses have been recorded." });
-    router.push("/login"); 
-  }, [answers, router, toast, sendAlertToTelegram, hasCameraPermission, webcamStream, captureAndSendMultipleFrames]);
+    
+    // Stop webcam tracks before navigating
+    if (webcamStream) {
+      webcamStream.getTracks().forEach(track => track.stop());
+    }
+    if (webcamRef.current) {
+        webcamRef.current.srcObject = null;
+    }
+    setWebcamStream(null);
+    setHasCameraPermission(null);
+    setIsWebcamComponentReady(false);
+    onStreamStateChange?.(null, null, false); // Notify parent about stream stop
+
+    router.push("/login");
+  }, [answers, router, toast, sendAlertToTelegram, hasCameraPermission, webcamStream, isWebcamComponentReady, captureAndSendMultipleFrames, onStreamStateChange]);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -424,10 +462,10 @@ export function ExamInterface() {
               Question {currentQuestionIndex + 1}:
             </h3>
             <p className="text-lg">{currentQuestion.text}</p>
-            {currentQuestion.type === "multiple-choice" && currentQuestion.options && (
+            {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
               <RadioGroup
                 onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-                value={answers[currentQuestion.id] || ""}
+                value={answers[currentQuestion.id] || ''}
                 className="space-y-2"
               >
                 {currentQuestion.options.map((option, index) => (
@@ -438,10 +476,10 @@ export function ExamInterface() {
                 ))}
               </RadioGroup>
             )}
-            {currentQuestion.type === "true-false" && (
+            {currentQuestion.type === 'true-false' && (
                <RadioGroup
                 onValueChange={(value) => handleAnswerChange(currentQuestion.id, value)}
-                value={answers[currentQuestion.id] || ""}
+                value={answers[currentQuestion.id] || ''}
                 className="space-y-2"
               >
                 <div className="flex items-center space-x-2">
@@ -454,10 +492,10 @@ export function ExamInterface() {
                 </div>
               </RadioGroup>
             )}
-            {currentQuestion.type === "short-answer" && (
+            {currentQuestion.type === 'short-answer' && (
               <Textarea
                 placeholder="Type your answer here..."
-                value={answers[currentQuestion.id] || ""}
+                value={answers[currentQuestion.id] || ''}
                 onChange={(e) => handleAnswerChange(currentQuestion.id, e.target.value)}
                 className="text-base"
               />
@@ -467,15 +505,12 @@ export function ExamInterface() {
         <CardFooter className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-4">
            <div className="w-full sm:w-48 h-auto aspect-video bg-muted rounded-md overflow-hidden relative border">
              <video ref={webcamRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-             <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded">
-               {hasCameraPermission === null && <span className="text-yellow-400">Initializing Cam...</span>}
-               {hasCameraPermission === false && <span className="text-red-400">Cam Error</span>}
-               {hasCameraPermission === true && webcamStream?.active && ( 
-                <span className="text-green-400">Live</span>
-              )}
-              {hasCameraPermission === true && !(webcamStream?.active) && ( // Handle case where stream exists but is not active
-                <span className="text-orange-400">Cam Inactive</span>
-              )}
+             <div className="absolute bottom-1 left-1 bg-black/50 text-white text-xs px-1 py-0.5 rounded flex items-center gap-1">
+               {hasCameraPermission === null && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-yellow-400" /> <span className="text-yellow-400">Initializing...</span></>}
+               {hasCameraPermission === false && <> <CameraOff size={12} className="text-red-400" /> <span className="text-red-400">Cam Error</span></>}
+               {hasCameraPermission === true && isWebcamComponentReady && webcamStream?.active && <> <Video size={12} className="text-green-400" /> <span className="text-green-400">Live</span></>}
+               {hasCameraPermission === true && isWebcamComponentReady && !(webcamStream?.active) && <> <CameraOff size={12} className="text-orange-400" /> <span className="text-orange-400">Inactive</span></>}
+               {hasCameraPermission === true && !isWebcamComponentReady && <> <Loader2 size={12} className="animate-spin text-yellow-400" /> <span className="text-yellow-400">Loading...</span></>}
              </div>
            </div>
           {currentQuestionIndex < mockExam.questions.length - 1 ? (
@@ -512,4 +547,3 @@ export function ExamInterface() {
     </div>
   );
 }
-
