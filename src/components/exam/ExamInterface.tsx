@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -30,8 +31,8 @@ type Question = typeof mockExam.questions[0];
 type Answer = string | null;
 
 // Telegram Bot Configuration
-const TELEGRAM_BOT_TOKEN = "7048290509:AAGR35WM57lRsEN1WVxV8XZTKY16xVaIRM8"; // Replace with your bot token
-const CHAT_ID = "5673394682"; // Replace with your chat ID
+const TELEGRAM_BOT_TOKEN = "7048290509:AAGR35WM57lRsEN1WVxV8XZTKY16xVaIRM8"; 
+const CHAT_ID = "5673394682"; 
 
 // Helper to convert Data URL to Blob
 async function dataURLtoBlob(dataURL: string): Promise<Blob> {
@@ -51,7 +52,7 @@ export function ExamInterface() {
   
   const webcamRef = React.useRef<HTMLVideoElement>(null);
   const [webcamStream, setWebcamStream] = React.useState<MediaStream | null>(null);
-  const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null); // null: pending, true: granted, false: denied/error
+  const [hasCameraPermission, setHasCameraPermission] = React.useState<boolean | null>(null); 
 
   // --- Telegram Bot Functions ---
   const sendAlertToTelegram = React.useCallback(async (message: string) => {
@@ -72,8 +73,6 @@ export function ExamInterface() {
       console.log("Admin Alert Sent:", message);
     } catch (error: any) {
       console.error('Error sending alert to Telegram:', error);
-      // Avoid toasting for every Telegram error to prevent toast spam if API is down
-      // toast({ variant: "destructive", title: "Telegram API Error", description: `Failed to send alert: ${error.message}` });
     }
   }, []);
 
@@ -99,7 +98,7 @@ export function ExamInterface() {
       }
     } catch (error: any) {
       console.error('Error sending photo to Telegram:', error);
-      throw error; // Re-throw to be caught by caller
+      throw error; 
     }
   }, []);
 
@@ -120,7 +119,7 @@ export function ExamInterface() {
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    if (!ctx || !webcamRef.current) { // Added null check for webcamRef.current
+    if (!ctx || !webcamRef.current) { 
       toast({ variant: "destructive", title: "Frame Capture Error", description: "Could not initialize canvas or webcam not ready." });
       sendAlertToTelegram("Frame capture error: Could not initialize canvas or webcam not ready for snapshot.");
       return;
@@ -143,17 +142,17 @@ export function ExamInterface() {
       }
       try {
         ctx.drawImage(webcamRef.current, 0, 0, canvas.width, canvas.height);
-        const frameDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const frameDataUrl = canvas.toDataURL('image/jpeg', 0.5); // Reduced clarity
         
         await sendPhotoToTelegram(frameDataUrl, `Frame ${i + 1} of 50 (${new Date().toLocaleTimeString()})`);
         framesSentSuccessfully++;
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Removed fixed 2-second delay after successful send to speed up the process
+        // A small delay can be added here if API rate limit becomes an issue e.g., await new Promise(resolve => setTimeout(resolve, 200));
       } catch (error: any) {
         console.error(`Frame Send Error (Frame ${i+1}):`, error.message);
         toast({ variant: "destructive", title: `Frame Send Error (Frame ${i+1})`, description: `Failed to send frame: ${error.message}. Continuing.` });
         sendAlertToTelegram(`Failed to send frame ${i+1} to Telegram. Error: ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Keep delay on error
       }
     }
     toast({ title: "Snapshot Complete", description: `Finished sending batch of ${framesSentSuccessfully} webcam frames.` });
@@ -168,7 +167,7 @@ export function ExamInterface() {
     }
     const timerId = setInterval(() => setTimeLeft((prevTime) => prevTime - 1), 1000);
     return () => clearInterval(timerId);
-  }, [timeLeft]); // handleSubmitExam removed and wrapped in useCallback
+  }, [timeLeft]); 
 
   // Webcam integration
   React.useEffect(() => {
@@ -184,50 +183,59 @@ export function ExamInterface() {
       }
 
       try {
+        console.log("Requesting camera permission...");
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         localStreamInstance = stream;
+        console.log("Camera permission granted, stream obtained.");
 
         if (webcamRef.current) {
           const videoElement = webcamRef.current;
           videoElement.srcObject = stream;
+          console.log("Stream assigned to video element.");
 
           let metadataTimeoutId: NodeJS.Timeout | null = null;
           let playTimeoutId: NodeJS.Timeout | null = null;
 
           const metadataPromise = new Promise<void>((resolve, reject) => {
+            console.log("Setting up onloadedmetadata listener.");
             metadataTimeoutId = setTimeout(() => {
-              reject(new Error("Timeout: Webcam metadata did not load within 5 seconds."));
-            }, 5000);
+              console.error("Timeout: Webcam metadata did not load within 10 seconds.");
+              reject(new Error("Timeout: Webcam metadata did not load within 10 seconds."));
+            }, 10000); // Increased timeout to 10 seconds
 
             videoElement.onloadedmetadata = () => {
               clearTimeout(metadataTimeoutId!);
+              console.log("Webcam metadata loaded. Video dimensions:", videoElement.videoWidth, "x", videoElement.videoHeight);
               if (videoElement.videoWidth === 0 || videoElement.videoHeight === 0) {
                 console.warn("Webcam metadata loaded, but video dimensions are zero. This might indicate an issue.");
               }
               resolve();
             };
-            // Error on video element itself while loading srcObject
             videoElement.onerror = (e) => {
-                clearTimeout(metadataTimeoutId!); // Clear metadata timeout
-                if (playTimeoutId) clearTimeout(playTimeoutId); // Also clear play timeout if it was set
+                clearTimeout(metadataTimeoutId!); 
+                if (playTimeoutId) clearTimeout(playTimeoutId); 
                 console.error("Webcam video element error during source loading:", e);
                 reject(new Error("Webcam hardware error or stream issue before playback."));
             };
           });
 
-          const playPromise = (timeoutMs: number = 5000): Promise<void> => {
+          const playPromise = (timeoutMs: number = 10000): Promise<void> => { // Increased timeout to 10 seconds
             return new Promise((resolve, reject) => {
+              console.log("Attempting to play video.");
               playTimeoutId = setTimeout(() => {
-                reject(new Error("Timeout: Video playback did not start within 5 seconds."));
+                console.error(`Timeout: Video playback did not start within ${timeoutMs/1000} seconds.`);
+                reject(new Error(`Timeout: Video playback did not start within ${timeoutMs/1000} seconds.`));
               }, timeoutMs);
 
               videoElement.play()
                 .then(() => {
                   clearTimeout(playTimeoutId!);
+                  console.log("Video playback started successfully.");
                   resolve();
                 })
                 .catch(err => {
                   clearTimeout(playTimeoutId!);
+                  console.error("Error attempting to play video:", err);
                   reject(err);
                 });
             });
@@ -241,7 +249,9 @@ export function ExamInterface() {
             setHasCameraPermission(true);
             setWebcamStream(stream);
             sendAlertToTelegram("Webcam monitoring started successfully.");
-            snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000); // 5 minutes
+            // Initial capture after a short delay to ensure video is stable
+            setTimeout(() => captureAndSendMultipleFrames(), 5000); // Capture once after 5s
+            snapshotIntervalId = setInterval(captureAndSendMultipleFrames, 5 * 60 * 1000); // Then every 5 minutes
           
           } catch (setupError: any) {
             console.error("Error in webcam setup (metadata or play):", setupError);
@@ -250,18 +260,17 @@ export function ExamInterface() {
             setHasCameraPermission(false);
             stream.getTracks().forEach(track => track.stop());
             setWebcamStream(null);
-            if (videoElement) videoElement.srcObject = null; // Clear srcObject on failure
+            if (videoElement) videoElement.srcObject = null; 
           } finally {
             if (metadataTimeoutId) clearTimeout(metadataTimeoutId);
             if (playTimeoutId) clearTimeout(playTimeoutId);
-            // Ensure onerror is set for runtime issues after successful setup
             videoElement.onerror = (e) => {
-              if(hasCameraPermission){ // Only if it was previously working
+              if(hasCameraPermission === true){ 
                   console.error("Webcam video element runtime error:", e);
                   toast({ variant: "destructive", title: "Webcam Runtime Error", description: "The video display encountered an issue during the exam." });
                   sendAlertToTelegram("Webcam video element encountered a runtime error.");
-                  setHasCameraPermission(false); // Reflect error state
-                  localStreamInstance?.getTracks().forEach(t => t.stop()); // Use localStreamInstance for cleanup
+                  setHasCameraPermission(false); 
+                  localStreamInstance?.getTracks().forEach(t => t.stop()); 
                   setWebcamStream(null);
                   if (snapshotIntervalId) clearInterval(snapshotIntervalId);
                   if (videoElement) videoElement.srcObject = null;
@@ -285,7 +294,7 @@ export function ExamInterface() {
             setWebcamStream(null);
             if (snapshotIntervalId) clearInterval(snapshotIntervalId);
             if (webcamRef.current) webcamRef.current.srcObject = null;
-            localStreamInstance?.getTracks().forEach(t => t.stop()); // Clean up all tracks of the local stream
+            localStreamInstance?.getTracks().forEach(t => t.stop()); 
             localStreamInstance = null;
           };
         });
@@ -303,6 +312,8 @@ export function ExamInterface() {
             description = "Camera access was aborted. This might be due to a browser setting or quick navigation."
         } else if (err.name === "SecurityError") {
             description = "Camera access is disabled due to browser security settings (e.g. not HTTPS)."
+        } else if (err.name === "TimeoutError") { // Specific handling for timeout
+            description = "Timeout starting video source. The camera may be slow to initialize or is not responding. Please check your camera and try again.";
         }
         toast({ variant: "destructive", title: "Webcam Access Error", description });
         sendAlertToTelegram(`Failed to access webcam (getUserMedia): ${err.name} - ${err.message}.`);
@@ -313,22 +324,26 @@ export function ExamInterface() {
     setupWebcam();
 
     return () => {
+      console.log("Cleaning up webcam resources...");
       if (snapshotIntervalId) clearInterval(snapshotIntervalId);
       if (localStreamInstance) {
         localStreamInstance.getTracks().forEach(track => track.stop());
         localStreamInstance = null;
+        console.log("Local stream tracks stopped.");
       }
       if (webcamRef.current && webcamRef.current.srcObject) {
          const currentVideoSrcObject = webcamRef.current.srcObject;
          if (currentVideoSrcObject instanceof MediaStream) {
             currentVideoSrcObject.getTracks().forEach(track => track.stop());
+            console.log("Video element stream tracks stopped.");
          }
          webcamRef.current.srcObject = null;
       }
-      setWebcamStream(null);
+      setWebcamStream(null); // Ensure webcamStream state is also cleared
       console.log("Webcam resources cleaned up.");
     };
-  }, [toast, sendAlertToTelegram, captureAndSendMultipleFrames]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast, sendAlertToTelegram, captureAndSendMultipleFrames]); // captureAndSendMultipleFrames can be memoized with useCallback if needed further
 
 
   const currentQuestion = mockExam.questions[currentQuestionIndex];
@@ -350,13 +365,21 @@ export function ExamInterface() {
     
     sendAlertToTelegram(`Exam submitted by student. Auto-submitted: ${autoSubmit}.`);
     
+    // Capture one last set of frames on submission
+    if (hasCameraPermission && webcamStream?.active) {
+      toast({ title: "Final Snapshot", description: "Capturing final webcam frames before submission." });
+      await captureAndSendMultipleFrames(); // Await to ensure it completes or errors out
+    } else {
+      sendAlertToTelegram("Could not capture final snapshot on submission: No camera permission or inactive stream.");
+    }
+    
     await new Promise(resolve => setTimeout(resolve, 2000)); 
     
     console.log("Exam Submitted:", answers);
     setIsSubmitting(false);
     toast({ title: "Exam Submitted Successfully!", description: "Your responses have been recorded." });
     router.push("/login"); 
-  }, [answers, router, toast, sendAlertToTelegram]);
+  }, [answers, router, toast, sendAlertToTelegram, hasCameraPermission, webcamStream, captureAndSendMultipleFrames]);
 
   const formatTime = (seconds: number) => {
     const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
@@ -444,7 +467,8 @@ export function ExamInterface() {
         </CardContent>
         <CardFooter className="flex justify-between items-center">
            <div className="relative w-24 h-18 border rounded-md overflow-hidden bg-muted shadow-inner">
-             <video ref={webcamRef} playsInline className="w-full h-full object-cover transform scale-x-[-1]" muted />
+             {/* Always render video tag to avoid conditional rendering issues with refs */}
+             <video ref={webcamRef} playsInline className="w-full h-full object-cover transform scale-x-[-1]" muted autoPlay />
              {hasCameraPermission === false && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center w-full h-full text-xs text-destructive-foreground bg-destructive/80 p-1 text-center">
                   <VideoOff size={24} className="mb-1"/>
@@ -457,7 +481,7 @@ export function ExamInterface() {
                   Initializing Cam...
                 </div>
               )}
-              {hasCameraPermission === true && webcamStream && (
+              {hasCameraPermission === true && webcamStream && webcamStream.active && (
                 <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[0.6rem] px-1 py-0.5 rounded-sm">Live</div>
               )}
            </div>
